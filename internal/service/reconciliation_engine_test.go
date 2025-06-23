@@ -66,13 +66,12 @@ func TestReconciliationEngine_Reconcile_BestFit(t *testing.T) {
 				{ID: "S3", Amount: newDecimalFromString("75500.50"), Type: domain.Debit, TransactionTime: newDate(3)},
 			},
 			bankTxs: []domain.BankTransaction{
-				{ID: "B3-FEE", Amount: newDecimalFromString("-15000.00"), Date: newDate(3)},  // Bad fit
-				{ID: "B3-REAL", Amount: newDecimalFromString("-75500.00"), Date: newDate(3)}, // Good fit
+				{ID: "B3-FEE", Amount: newDecimalFromString("-15000.00"), Date: newDate(3)},
+				{ID: "B3-REAL", Amount: newDecimalFromString("-75500.00"), Date: newDate(3)},
 			},
-			// The engine should pair S3 with B3-REAL, not the fee.
 			expectedMatchedCount:         1,
 			expectedUnmatchedSystemCount: 0,
-			expectedUnmatchedBankCount:   1, // The fee is now correctly unmatched
+			expectedUnmatchedBankCount:   1,
 			expectedDiscrepancy:          newDecimalFromString("0.50"),
 		},
 		{
@@ -81,10 +80,9 @@ func TestReconciliationEngine_Reconcile_BestFit(t *testing.T) {
 				{ID: "S4", Amount: newDecimalFromString("10000"), Type: domain.Debit, TransactionTime: newDate(4)},
 			},
 			bankTxs: []domain.BankTransaction{
-				// The difference between 10000 and 8000 is 2000, which is > the 1000 threshold.
 				{ID: "B4", Amount: newDecimalFromString("-8000"), Date: newDate(4)},
 			},
-			expectedMatchedCount:         0, // No match should be made
+			expectedMatchedCount:         0,
 			expectedUnmatchedSystemCount: 1,
 			expectedUnmatchedBankCount:   1,
 			expectedDiscrepancy:          newDecimalFromString("0"),
@@ -103,11 +101,21 @@ func TestReconciliationEngine_Reconcile_BestFit(t *testing.T) {
 				{ID: "BNK-A-102", Amount: newDecimalFromString("-75500.50"), Date: newDate(24)},
 				{ID: "BNK-FEE-X", Amount: newDecimalFromString("-15000.00"), Date: newDate(24)},
 			},
-			// Now it should correctly match SYS-003 with BNK-A-102, leaving the fee unmatched.
 			expectedMatchedCount:         3,
-			expectedUnmatchedSystemCount: 1,                              // SYS-004
-			expectedUnmatchedBankCount:   1,                              // BNK-FEE-X
-			expectedDiscrepancy:          newDecimalFromString("500.00"), // Only from the 125k vs 125.5k pair
+			expectedUnmatchedSystemCount: 1,
+			expectedUnmatchedBankCount:   1,
+			expectedDiscrepancy:          newDecimalFromString("500.00"),
+		},
+		{
+			name:      "Unmatched Bank Tx in a Group with No System Tx",
+			systemTxs: []domain.SystemTransaction{},
+			bankTxs: []domain.BankTransaction{
+				{ID: "B6-ISOLATED", Amount: newDecimalFromString("-50.00"), Date: newDate(6)},
+			},
+			expectedMatchedCount:         0,
+			expectedUnmatchedSystemCount: 0,
+			expectedUnmatchedBankCount:   1,
+			expectedDiscrepancy:          newDecimalFromString("0"),
 		},
 	}
 
