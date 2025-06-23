@@ -1,0 +1,11 @@
+FROM alpine:latest
+
+COPY --from=reconciler-app:latest /reconciler /reconciler
+
+COPY scripts/integration_test.sh /test.sh
+
+COPY sample /data/
+
+RUN chmod +x /test.sh
+
+ENTRYPOINT ["/test.sh"]
