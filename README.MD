@@ -93,7 +93,7 @@ docker run --rm reconciler-test:latest
 ```
 
 > Success message:
-![alt text](https://https://github.com/nmmugia/reconciliation-service/blob/master/sample/ss.png?raw=true)
+![alt text](https://github.com/nmmugia/reconciliation-service/blob/master/sample/ss.png?raw=true)
 
 ---
 
