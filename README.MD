@@ -35,8 +35,8 @@ go mod tidy
 
 ```bash
 go run ./cmd/reconciler/ \
-  -sys="/path/to/system_transactions.csv" \
-  -bank="/path/to/bank1.csv,/path/to/bank2.csv" \
+  -sys="sample/system.csv" \
+  -bank="sample/bank.csv,sample/bank2.csv" \
   -start="2025-06-01" \
   -end="2025-06-30"
 ```
@@ -55,12 +55,12 @@ docker build -t reconciler-app:latest -f Dockerfile .
 
 ```bash
 docker run --rm \
-  -v /path/to/your/local/data:/data \
+  -v ./sample:/data \
   reconciler-app:latest \
-  -sys="/data/system_transactions.csv" \
-  -bank="/data/bank_statement_amartha.csv" \
-  -start="2025-06-23" \
-  -end="2025-06-24"
+  -sys="data/system.csv" \
+  -bank="data/bank.csv" \
+  -start="2025-06-01" \
+  -end="2025-06-30"
 ```
 
 ---
