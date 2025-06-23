@@ -19,7 +19,7 @@ func (e *ReconciliationEngine) getMatchKey(date time.Time, txType domain.Transac
 }
 
 func (e *ReconciliationEngine) Reconcile(systemTxs []domain.SystemTransaction, bankTxs []domain.BankTransaction) *domain.ReconciliationSummary {
-	discrepancyThreshold := decimal.NewFromInt(1000)
+	discrepancyThreshold := decimal.NewFromInt(1000) // Maximum treshold for matching
 
 	systemTxMap := make(map[string][]*domain.SystemTransaction)
 	for i := range systemTxs {
