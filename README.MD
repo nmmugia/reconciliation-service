@@ -69,11 +69,13 @@ docker run --rm \
 
 ### ✅ Unit Tests
 
-Run tests and view coverage:
+Run unit tests and view coverage:
 
 ```bash
-go test -v --cover ./...
+go test -v --cover ./internal/...
 ```
+
+![unit test result](https://github.com/nmmugia/reconciliation-service/blob/master/sample/ss2.png?raw=true)
 
 ---
 
@@ -93,7 +95,8 @@ docker run --rm reconciler-test:latest
 ```
 
 > Success message:
-![alt text](https://github.com/nmmugia/reconciliation-service/blob/master/sample/ss.png?raw=true)
+
+![integration test result](https://github.com/nmmugia/reconciliation-service/blob/master/sample/ss.png?raw=true)
 
 ---
 
