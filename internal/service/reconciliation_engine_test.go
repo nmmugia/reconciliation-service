@@ -117,6 +117,20 @@ func TestReconciliationEngine_Reconcile_BestFit(t *testing.T) {
 			expectedUnmatchedBankCount:   1,
 			expectedDiscrepancy:          newDecimalFromString("0"),
 		},
+		{
+			name: "Coverage for bankTxUsed check",
+			systemTxs: []domain.SystemTransaction{
+				{ID: "S-COVERAGE-1", Amount: newDecimalFromString("100"), Type: domain.Debit, TransactionTime: newDate(10)},
+				{ID: "S-COVERAGE-2", Amount: newDecimalFromString("200"), Type: domain.Debit, TransactionTime: newDate(10)},
+			},
+			bankTxs: []domain.BankTransaction{
+				{ID: "B-COVERAGE", Amount: newDecimalFromString("-101"), Date: newDate(10)},
+			},
+			expectedMatchedCount:         1,
+			expectedUnmatchedSystemCount: 1,
+			expectedUnmatchedBankCount:   0,
+			expectedDiscrepancy:          newDecimalFromString("1"),
+		},
 	}
 
 	for _, tc := range testCases {
