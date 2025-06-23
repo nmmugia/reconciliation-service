@@ -22,7 +22,7 @@ func newDate(day int) time.Time {
 	return time.Date(2023, 1, day, 0, 0, 0, 0, time.UTC)
 }
 
-func TestReconciliationEngine_Reconcile(t *testing.T) {
+func TestReconciliationEngine_Reconcile_BestFit(t *testing.T) {
 	engine := NewReconciliationEngine()
 
 	testCases := []struct {
@@ -35,21 +35,12 @@ func TestReconciliationEngine_Reconcile(t *testing.T) {
 		expectedDiscrepancy          decimal.Decimal
 	}{
 		{
-			name:                         "Empty Inputs",
-			systemTxs:                    []domain.SystemTransaction{},
-			bankTxs:                      []domain.BankTransaction{},
-			expectedMatchedCount:         0,
-			expectedUnmatchedSystemCount: 0,
-			expectedUnmatchedBankCount:   0,
-			expectedDiscrepancy:          newDecimalFromString("0"),
-		},
-		{
-			name: "Perfect One-to-One Match",
+			name: "Perfect Match",
 			systemTxs: []domain.SystemTransaction{
 				{ID: "S1", Amount: newDecimalFromString("100"), Type: domain.Credit, TransactionTime: newDate(1)},
 			},
 			bankTxs: []domain.BankTransaction{
-				{ID: "B1", Amount: newDecimalFromString("100"), Date: newDate(1), BankName: "BankA"},
+				{ID: "B1", Amount: newDecimalFromString("100"), Date: newDate(1)},
 			},
 			expectedMatchedCount:         1,
 			expectedUnmatchedSystemCount: 0,
@@ -57,58 +48,66 @@ func TestReconciliationEngine_Reconcile(t *testing.T) {
 			expectedDiscrepancy:          newDecimalFromString("0"),
 		},
 		{
-			name: "No Matches - All Unmatched",
+			name: "Simple Discrepancy",
 			systemTxs: []domain.SystemTransaction{
-				{ID: "S1", Amount: newDecimalFromString("100"), Type: domain.Credit, TransactionTime: newDate(1)},
+				{ID: "S2", Amount: newDecimalFromString("100.50"), Type: domain.Debit, TransactionTime: newDate(2)},
 			},
 			bankTxs: []domain.BankTransaction{
-				{ID: "B1", Amount: newDecimalFromString("200"), Date: newDate(2), BankName: "BankA"},
+				{ID: "B2", Amount: newDecimalFromString("-100.00"), Date: newDate(2)},
 			},
-			expectedMatchedCount:         0,
+			expectedMatchedCount:         1,
+			expectedUnmatchedSystemCount: 0,
+			expectedUnmatchedBankCount:   0,
+			expectedDiscrepancy:          newDecimalFromString("0.50"),
+		},
+		{
+			name: "Best Fit pairing logic test",
+			systemTxs: []domain.SystemTransaction{
+				{ID: "S3", Amount: newDecimalFromString("75500.50"), Type: domain.Debit, TransactionTime: newDate(3)},
+			},
+			bankTxs: []domain.BankTransaction{
+				{ID: "B3-FEE", Amount: newDecimalFromString("-15000.00"), Date: newDate(3)},  // Bad fit
+				{ID: "B3-REAL", Amount: newDecimalFromString("-75500.00"), Date: newDate(3)}, // Good fit
+			},
+			// The engine should pair S3 with B3-REAL, not the fee.
+			expectedMatchedCount:         1,
+			expectedUnmatchedSystemCount: 0,
+			expectedUnmatchedBankCount:   1, // The fee is now correctly unmatched
+			expectedDiscrepancy:          newDecimalFromString("0.50"),
+		},
+		{
+			name: "Threshold Test - difference is too large to match",
+			systemTxs: []domain.SystemTransaction{
+				{ID: "S4", Amount: newDecimalFromString("10000"), Type: domain.Debit, TransactionTime: newDate(4)},
+			},
+			bankTxs: []domain.BankTransaction{
+				// The difference between 10000 and 8000 is 2000, which is > the 1000 threshold.
+				{ID: "B4", Amount: newDecimalFromString("-8000"), Date: newDate(4)},
+			},
+			expectedMatchedCount:         0, // No match should be made
 			expectedUnmatchedSystemCount: 1,
 			expectedUnmatchedBankCount:   1,
 			expectedDiscrepancy:          newDecimalFromString("0"),
 		},
 		{
-			name: "Many-to-One Match (System Surplus)",
+			name: "Full real-world scenario from test failure",
 			systemTxs: []domain.SystemTransaction{
-				{ID: "S1", Amount: newDecimalFromString("100"), Type: domain.Credit, TransactionTime: newDate(1)},
-				{ID: "S2", Amount: newDecimalFromString("100.10"), Type: domain.Credit, TransactionTime: newDate(1)},
+				{ID: "SYS-001", Amount: newDecimalFromString("50000.00"), Type: domain.Credit, TransactionTime: newDate(23)},
+				{ID: "SYS-002", Amount: newDecimalFromString("125000.00"), Type: domain.Debit, TransactionTime: newDate(23)},
+				{ID: "SYS-003", Amount: newDecimalFromString("75500.50"), Type: domain.Debit, TransactionTime: newDate(24)},
+				{ID: "SYS-004", Amount: newDecimalFromString("200000.00"), Type: domain.Credit, TransactionTime: newDate(24)},
 			},
 			bankTxs: []domain.BankTransaction{
-				{ID: "B1", Amount: newDecimalFromString("100"), Date: newDate(1), BankName: "BankA"},
+				{ID: "BNK-A-100", Amount: newDecimalFromString("50000.00"), Date: newDate(23)},
+				{ID: "BNK-A-101", Amount: newDecimalFromString("-125500.00"), Date: newDate(23)},
+				{ID: "BNK-A-102", Amount: newDecimalFromString("-75500.50"), Date: newDate(24)},
+				{ID: "BNK-FEE-X", Amount: newDecimalFromString("-15000.00"), Date: newDate(24)},
 			},
-			expectedMatchedCount:         1,
-			expectedUnmatchedSystemCount: 1,
-			expectedUnmatchedBankCount:   0,
-			expectedDiscrepancy:          newDecimalFromString("0"),
-		},
-		{
-			name: "One-to-Many Match (Bank Surplus)",
-			systemTxs: []domain.SystemTransaction{
-				{ID: "S1", Amount: newDecimalFromString("99.90"), Type: domain.Credit, TransactionTime: newDate(1)},
-			},
-			bankTxs: []domain.BankTransaction{
-				{ID: "B1", Amount: newDecimalFromString("100"), Date: newDate(1), BankName: "BankA"},
-				{ID: "B2", Amount: newDecimalFromString("100"), Date: newDate(1), BankName: "BankA"},
-			},
-			expectedMatchedCount:         1,
-			expectedUnmatchedSystemCount: 0,
-			expectedUnmatchedBankCount:   1,
-			expectedDiscrepancy:          newDecimalFromString("0.10"),
-		},
-		{
-			name: "Handles Negative Bank Amounts (DEBIT)",
-			systemTxs: []domain.SystemTransaction{
-				{ID: "S1", Amount: newDecimalFromString("150.25"), Type: domain.Debit, TransactionTime: newDate(1)},
-			},
-			bankTxs: []domain.BankTransaction{
-				{ID: "B1", Amount: newDecimalFromString("-150"), Date: newDate(1), BankName: "BankA"},
-			},
-			expectedMatchedCount:         1,
-			expectedUnmatchedSystemCount: 0,
-			expectedUnmatchedBankCount:   0,
-			expectedDiscrepancy:          newDecimalFromString("0.25"),
+			// Now it should correctly match SYS-003 with BNK-A-102, leaving the fee unmatched.
+			expectedMatchedCount:         3,
+			expectedUnmatchedSystemCount: 1,                              // SYS-004
+			expectedUnmatchedBankCount:   1,                              // BNK-FEE-X
+			expectedDiscrepancy:          newDecimalFromString("500.00"), // Only from the 125k vs 125.5k pair
 		},
 	}
 

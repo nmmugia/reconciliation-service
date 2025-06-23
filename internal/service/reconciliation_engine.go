@@ -1,7 +1,6 @@
 package service
 
 import (
-	"sort"
 	"time"
 
 	"github.com/nmmugia/reconciliation-service/internal/domain"
@@ -20,6 +19,8 @@ func (e *ReconciliationEngine) getMatchKey(date time.Time, txType domain.Transac
 }
 
 func (e *ReconciliationEngine) Reconcile(systemTxs []domain.SystemTransaction, bankTxs []domain.BankTransaction) *domain.ReconciliationSummary {
+	discrepancyThreshold := decimal.NewFromInt(1000)
+
 	systemTxMap := make(map[string][]*domain.SystemTransaction)
 	for i := range systemTxs {
 		tx := &systemTxs[i]
@@ -46,48 +47,53 @@ func (e *ReconciliationEngine) Reconcile(systemTxs []domain.SystemTransaction, b
 	summary.TotalSystemTransactions = len(systemTxs)
 	summary.TotalBankTransactions = len(bankTxs)
 
+	processedSystemTx := make(map[string]bool)
+	processedBankTx := make(map[string]bool)
+
 	for key, systemTxs := range systemTxMap {
 		bankTxs, found := bankTxMap[key]
-		if found {
-			sort.Slice(systemTxs, func(i, j int) bool {
-				return systemTxs[i].Amount.LessThan(systemTxs[j].Amount)
-			})
-			sort.Slice(bankTxs, func(i, j int) bool {
-				return bankTxs[i].Amount.Abs().LessThan(bankTxs[j].Amount.Abs())
-			})
+		if !found {
+			continue
+		}
 
-			matchCount := min(len(systemTxs), len(bankTxs))
-			summary.MatchedTransactions += matchCount
+		bankTxUsed := make([]bool, len(bankTxs))
 
-			for i := 0; i < matchCount; i++ {
-				systemTx := systemTxs[i]
-				bankTx := bankTxs[i]
-				discrepancy := systemTx.Amount.Sub(bankTx.Amount.Abs()).Abs()
-				summary.AmountDiscrepancyTotal = summary.AmountDiscrepancyTotal.Add(discrepancy)
-			}
+		for _, systemTx := range systemTxs {
+			bestFitIndex := -1
+			minDifference := discrepancyThreshold
 
-			if len(systemTxs) > matchCount {
-				for _, tx := range systemTxs[matchCount:] {
-					summary.UnmatchedSystemTransactions = append(summary.UnmatchedSystemTransactions, *tx)
+			for i, bankTx := range bankTxs {
+				if bankTxUsed[i] {
+					continue
+				}
+
+				currentDifference := systemTx.Amount.Sub(bankTx.Amount.Abs()).Abs()
+
+				if currentDifference.LessThan(minDifference) {
+					minDifference = currentDifference
+					bestFitIndex = i
 				}
 			}
 
-			if len(bankTxs) > matchCount {
-				for _, tx := range bankTxs[matchCount:] {
-					summary.UnmatchedBankTransactions[tx.BankName] = append(summary.UnmatchedBankTransactions[tx.BankName], *tx)
-				}
-			}
-			delete(bankTxMap, key)
-		} else {
-			for _, tx := range systemTxs {
-				summary.UnmatchedSystemTransactions = append(summary.UnmatchedSystemTransactions, *tx)
+			if bestFitIndex != -1 {
+				summary.MatchedTransactions++
+				summary.AmountDiscrepancyTotal = summary.AmountDiscrepancyTotal.Add(minDifference)
+
+				processedSystemTx[systemTx.ID] = true
+				processedBankTx[bankTxs[bestFitIndex].ID] = true
+				bankTxUsed[bestFitIndex] = true
 			}
 		}
 	}
 
-	for _, bankTxs := range bankTxMap {
-		for _, tx := range bankTxs {
-			summary.UnmatchedBankTransactions[tx.BankName] = append(summary.UnmatchedBankTransactions[tx.BankName], *tx)
+	for _, tx := range systemTxs {
+		if !processedSystemTx[tx.ID] {
+			summary.UnmatchedSystemTransactions = append(summary.UnmatchedSystemTransactions, tx)
+		}
+	}
+	for _, tx := range bankTxs {
+		if !processedBankTx[tx.ID] {
+			summary.UnmatchedBankTransactions[tx.BankName] = append(summary.UnmatchedBankTransactions[tx.BankName], tx)
 		}
 	}
 
